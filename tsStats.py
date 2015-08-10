@@ -188,6 +188,25 @@ def DN_Burstiness(y):
     B = (np.std(y) - np.mean(y))/(np.std(y) + np.mean(y))
     return B
 
+def CO_AutoCorr(y, tau=1):
+    """
+    Arguments
+    ---------
+
+    y: a nitime time-series object, or numpy vector
+
+    tau: the time-delay.
+    """
+    # Make the input a row vector of numbers:
+    y = makeRowVector(vectorize(y))
+
+    n = len(y[0])
+    y1 = y[0][tau:]
+    y2 = y[0][:n-tau]
+
+    corr = np.corrcoef(y1, y2, ddof=0)[0, 1] #ddof=0 indicates that we should normalize by N, not N-1
+    return corr
+    
 # ------------------------------------------------------------------------------
 
 
@@ -204,7 +223,8 @@ functionsToCall = {'mean': partial(DN_Means, meanType='arithmetic'),
                     'length': ST_Length,
                     'EN_CID': EN_CID,
                     'SB_MotifTwo_diff': partial(SB_MotifTwo,binarizeHow='diff'),
-                    'burstiness': DN_Burstiness}
+                    'burstiness': DN_Burstiness,
+                    'autocorrelate': partial(CO_AutoCorr,tau = 1)}
 
 # Evaluate functions:
 resultsDic = evaluateAllFunctions(timeSeriesData,functionsToCall)
