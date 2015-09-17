@@ -1,6 +1,9 @@
 import numpy as np
 from nitime import timeseries as ts
 from functools import partial
+import statsmodels.api as sm
+import scipy.optimize as optimize
+from scipy import interpolate
 
 # ------------------------------------------------------------------------------
 def evaluateAllFunctions(y,functionDic):
@@ -41,6 +44,7 @@ def convertToFeatureVector(outputDic):
             
     return nameList, outputList
 
+#TODO vectorize called in each function, will doing it once at the start save time?
 def vectorize(time_series):
     
     """
@@ -188,24 +192,31 @@ def DN_Burstiness(y):
     B = (np.std(y) - np.mean(y))/(np.std(y) + np.mean(y))
     return B
 
-def CO_AutoCorr(y, tau=1):
+def CO_AutoCorr(y, tau):
     """
     Arguments
     ---------
-
     y: a nitime time-series object, or numpy vector
-
-    tau: the time-delay.
+    tau: scalar or array of desired integer time delays
     """
-    # Make the input a row vector of numbers:
-    y = makeRowVector(vectorize(y))
+    y = np.squeeze(y)
+    acf = sm.tsa.stattools.acf(y , fft=True)
 
-    n = len(y[0])
-    y1 = y[0][tau:]
-    y2 = y[0][:n-tau]
+    return np.take(acf,tau) 
 
-    corr = np.corrcoef(y1, y2, ddof=0)[0, 1] #ddof=0 indicates that we should normalize by N, not N-1
-    return corr
+def CO_FirstZero(y):
+    """
+    Returns the first time autocorrelation equals zero, currently using cubic
+    interpolation
+    """
+    y = np.squeeze(y)
+    acf = sm.tsa.stattools.acf(y, fft=True)
+    first_zero_crossing = np.where(np.diff(np.sign(y)))[0][0]
+    interp = interpolate.interp1d(np.arange(first_zero_crossing-1,first_zero_crossing+3),
+                                            y[first_zero_crossing-1:first_zero_crossing+3],
+                                            kind='cubic')
+    root = optimize.brentq(interp,first_zero_crossing , first_zero_crossing+1)
+    return root
     
 # ------------------------------------------------------------------------------
 
@@ -213,25 +224,26 @@ def CO_AutoCorr(y, tau=1):
 # ------------------------------------------------------------------------------
 # Main body of code
 # ------------------------------------------------------------------------------
-
+if __name__ == "__main__":
 # Define the time series
-timeSeriesData = np.random.randn(1,1000)
+    timeSeriesData = np.random.randn(1,1000)
 
 # Set functions and parameters:
-functionsToCall = {'mean': partial(DN_Means, meanType='arithmetic'),
-                    'std': partial(DN_Spread, stdType='std'),
-                    'length': ST_Length,
-                    'EN_CID': EN_CID,
-                    'SB_MotifTwo_diff': partial(SB_MotifTwo,binarizeHow='diff'),
-                    'burstiness': DN_Burstiness,
-                    'autocorrelate': partial(CO_AutoCorr,tau = 1)}
+    functionsToCall = {'mean': partial(DN_Means, meanType='arithmetic'),
+                        'std': partial(DN_Spread, stdType='std'),
+                        'length': ST_Length,
+                        'EN_CID': EN_CID,
+                        'SB_MotifTwo_diff': partial(SB_MotifTwo,binarizeHow='diff'),
+                        'burstiness': DN_Burstiness,
+                        'autocorrelation': partial(CO_AutoCorr,tau = 1),
+                        'Autocorrelationfirstroot': CO_FirstZero}
 
 # Evaluate functions:
-resultsDic = evaluateAllFunctions(timeSeriesData,functionsToCall)
+    resultsDic = evaluateAllFunctions(timeSeriesData,functionsToCall)
 
 # Turn this into a list of names and outputs:
-functionNames, outputs = convertToFeatureVector(resultsDic)
+    functionNames, outputs = convertToFeatureVector(resultsDic)
 
-for i in np.arange(len(functionNames)):
-    print functionNames[i],' = ',outputs[i]
+    for i in np.arange(len(functionNames)):
+        print functionNames[i],' = ',outputs[i]
 
