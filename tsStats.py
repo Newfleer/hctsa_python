@@ -206,17 +206,19 @@ def CO_AutoCorr(y, tau):
 
 def CO_FirstZero(y):
     """
-    Returns the first time autocorrelation equals zero, currently using cubic
-    interpolation
+    Returns the first tau that autocorrelation equals zero. Current
+    implementation returns the value of tau after the first crossing.
+
+    If the timeseries never crosses the x-axis it returns the length of the
+    timeseries
     """
     y = np.squeeze(y)
     acf = sm.tsa.stattools.acf(y, fft=True)
-    first_zero_crossing = np.where(np.diff(np.sign(y)))[0][0]
-    interp = interpolate.interp1d(np.arange(first_zero_crossing-1,first_zero_crossing+3),
-                                            y[first_zero_crossing-1:first_zero_crossing+3],
-                                            kind='cubic')
-    root = optimize.brentq(interp,first_zero_crossing , first_zero_crossing+1)
-    return root
+    crossings = np.where(np.diff(np.sign(acf))) 
+    if len(crossings[0]) == 0: #if there are no crossings return the max of tau
+        return len(acf)
+    first_zero_crossing = crossings[0][0]
+    return first_zero_crossing + 1
     
 # ------------------------------------------------------------------------------
 
